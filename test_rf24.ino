@@ -6,7 +6,8 @@
 
 RF24 radio(CE_PIN, CSN_PIN);
 
-const byte address[] = { 0xF0F0F0F0AA , 0xF0F0F0F0BB};
+const uint64_t local_address = 0xF9F9F9F9BB;
+const uint64_t dest_address = 0xF9F9F9F9AA;
 
 unsigned long last_send = 0;
 uint8_t radioNumber = 0;
@@ -17,18 +18,18 @@ struct s_payload {
   char message[20];
 };
 
-void send() {
-  Serial.println("sending !");
-  
+void send() {  
   struct s_payload payload;
   payload.id = id++;
   strcpy(payload.message, "Salut !");
 
   radio.stopListening();
+  //delay(10);
+  //radio.openWritingPipe(dest_address);
   delay(10);
-  bool report = radio.write(&payload, sizeof(s_payload));
+  
+  bool report = radio.write(&payload, sizeof(s_payload)); //+1
   delay(10);
-
   radio.startListening();
 }
 
@@ -45,34 +46,28 @@ void setup() {
     while (1) {}  // hold in infinite loop
   }
 
-  //radio.setChannel(0);
+  radio.setChannel(0); //0-127 
   radio.setDataRate(RF24_250KBPS); //RF24_250KBPS, RF24_1MBPS, RF24_2MBPS
-  radio.setPALevel(RF24_PA_HIGH);  //RF24_PA_MIN RF24_PA_LOW RF24_PA_HIGH RF24_PA_MAX 
+  radio.setPALevel(RF24_PA_HIGH);  //RF24_PA_MIN=-18dBm, RF24_PA_LOW=-12dBm, RF24_PA_HIGH=-6dBM, RF24_PA_MAX =0dBm
 
-  // save on transmission time by setting the radio to only transmit the
-  // number of bytes we need to transmit a float
   radio.setPayloadSize(sizeof(s_payload));
-  
+  //radio.enableDynamicPayloads();
+
   //radio.setRetries(3,3);
   radio.setAutoAck(false);
   radio.disableCRC();
+  radio.powerUp(); //disable low power mode
 
-  radio.openWritingPipe(address[radioNumber]);
-  radio.openReadingPipe(1, address[!radioNumber]);
+  radio.openWritingPipe(local_address);
+  radio.openReadingPipe(1, dest_address);
 
   radio.startListening();
   Serial.println("listening...");
+
 }  // setup
 
 
 void loop() {
-
-  if (radioNumber && millis() - last_send > 3000) {
-    send();
-    last_send = millis();
-  }
-
-  delay(10);
 
   if (radio.available()) {
 
@@ -85,6 +80,12 @@ void loop() {
     Serial.println();
   }
 
-  delay(10);
+  delay(100);
+
+  if (radioNumber && millis() - last_send > 3000) {
+    Serial.println("sending !");
+    send();
+    last_send = millis();
+  }
 
 }  // loop
